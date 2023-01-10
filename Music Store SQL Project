@@ -1,0 +1,185 @@
+-- Which countries have the most Invoices?
+SELECT c.Country, count(i.InvoiceId) invoices
+FROM Invoice i
+JOIN Customer c
+ON i.CustomerId = c.CustomerId
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Which city has the best customers?
+SELECT c.City, sum(i.Total) city_total
+FROM Invoice i
+JOIN Customer c
+ON i.CustomerId = c.CustomerId
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 1;
+
+-- Who is the best customer?
+WITH T1 AS (SELECT c.CustomerId, SUM(i.Total) customer_total
+FROM Invoice i
+JOIN Customer c
+ON i.CustomerId = c.CustomerId
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 1)
+ 
+SELECT c.FirstName, c.LastName, T1.customer_total
+FROM Customer c
+JOIN T1 
+ON c.CustomerId = T1.CustomerId;
+
+-- Who are the Rock Music listeners ?
+SELECT c.Email , c.FirstName, c.LastName, g.Name as genre
+FROM Genre g
+JOIN Track t
+ON t.GenreId = g.GenreId
+JOIN InvoiceLine il
+ON t.TrackId = il.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+WHERE g.Name = "Rock"
+GROUP BY 1
+ORDER BY 1;
+
+-- Who are the TOP 10 artists who have written the most rock music ?
+SELECT ar.Name as artist, COUNT(t.Name) total_songs 
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN Album al
+ON al.AlbumId = t.AlbumId
+JOIN Artist ar
+ON al.ArtistId = ar.ArtistId
+WHERE g.Name = "Rock"
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10;
+
+-- which artist has earned the most according to the InvoiceLines? And which customer spent the most on this artist ?
+WITH t1 as (SELECT ar.Name as artist,SUM(il.UnitPrice * il.Quantity) as AmountSpent
+FROM Artist ar
+JOIN Album al
+ON ar.ArtistId = al.ArtistId
+JOIN Track t
+ON al.AlbumId = t.AlbumId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 1)
+
+SELECT ar.Name as artist, SUM(il.UnitPrice * il.Quantity) as AmountSpent, c.CustomerId, c.FirstName, c.LastName
+FROM Artist ar
+JOIN Album al
+ON ar.ArtistId = al.ArtistId
+JOIN Track t
+ON al.AlbumId = t.AlbumId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+WHERE ar.Name = (SELECT artist FROM t1)
+GROUP BY 1,3,4,5
+ORDER BY 2 DESC
+LIMIT 1;
+
+-- What is the most popular music Genre for each country ?
+SELECT c.Country country, g.Name genre, count(*) purchases
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,2;
+
+SELECT country, MAX(purchases) max_purchases
+FROM (SELECT c.Country country, g.Name genre, count(*) purchases
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,2) t1
+GROUP BY 1;
+
+SELECT t1.country, t1.genre, t1.purchases
+FROM (SELECT c.Country country, g.Name genre, count(*) purchases
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,2) t1
+JOIN (SELECT country, MAX(purchases) max_purchases
+FROM (SELECT c.Country country, g.Name genre, count(*) purchases
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN InvoiceLine il
+ON il.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = il.InvoiceId
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,2) t1
+GROUP BY 1) t2
+ON t1.country = t2.country AND t1.purchases = t2.max_purchases;
+
+-- What is the track names that have a song length longer than the average song length ?
+SELECT Name track, Milliseconds
+FROM Track
+WHERE Milliseconds > (SELECT AVG(Milliseconds) FROM Track)
+ORDER BY 2 DESC;
+
+-- What is the customer that has spent the most on music for each country ?
+WITH t1 AS (SELECT c.Country, c.FirstName, c.LastName, c.CustomerId, SUM(i.total) total
+FROM Invoice i
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,4,2,3),
+t2 AS (SELECT Country, Max(total) max_total
+FROM (SELECT c.Country, c.FirstName, c.LastName, c.CustomerId, SUM(i.total) total
+FROM Invoice i
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+GROUP BY 1,4,2,3) t1
+GROUP BY 1)
+
+SELECT t1.Country, t1.FirstName, t1.LastName, t1.CustomerId, t1.total
+FROM t1
+JOIN t2
+ON t1.Country = t2.Country AND t1.total = t2.max_total
+ORDER BY 1;
+
+-- Which year has the most sales ?
+SELECT STRFTIME('%Y', InvoiceDate) year, SUM(Total) total
+FROM Invoice
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Top 10 customers for the last year
+SELECT c.FirstName||' '||c.LastName customer_name, SUM(i.Total) total_spent
+FROM Invoice i
+JOIN Customer c
+ON c.CustomerId = i.CustomerId
+WHERE i.InvoiceDate BETWEEN '2013-01-01' AND '2014-01-01'
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10;
